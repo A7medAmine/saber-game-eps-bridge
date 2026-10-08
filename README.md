@@ -34,7 +34,10 @@ You do **not** need to wire buttons. The NodeMCU's on-board **FLASH** button (ne
 - **hold 3 seconds** = calibration (see below)
 (The RST button only resets the board and can't be used.) Optional external buttons still work: D5-GND = recenter, D6-GND = start (hold 3 s = calibrate). Don't hold FLASH while plugging the board in or powering it up.
 
-## Calibration (USB sketch, do this once)
+## Quick calibration (easiest, start here)
+In the game page click **Quick calibrate (lay flat)**: put the controller flat on the table, ADXL345 chip facing the ceiling, click Ready and don't touch it for a second. This zeroes the X/Y offsets, which is what matters most for a tilt stick. The full 6-position calibration below is optional and also fixes per-axis scale.
+
+## Calibration (USB sketch, 6 positions, optional)
 Cheap ADXL345 boards are often a few percent off on each axis, which makes the saber inaccurate. The sketch has a built-in 6-position calibration that is saved in the ESP's flash.
 **Easiest: from the game page.** With the bridge running and the controller connected, open the game and click **Calibrate controller** in the lobby. It shows each position, counts down 3 s, then captures. (Or press N to capture.)
 

@@ -177,7 +177,7 @@ function startSerial(portPath) {
       console.log(`[usb] ${portPath} open @ ${BAUD}`);
       handle = {
         send: (o) => {
-          const c = { h: 'h', bomb: 'b', 'cal-start': 'c', 'cal-next': 'n', 'cal-cancel': 'x' }[o.t] || '';
+          const c = { h: 'h', bomb: 'b', 'cal-start': 'c', 'cal-quick': 'q', 'cal-next': 'n', 'cal-cancel': 'x' }[o.t] || '';
           if (c && port.isOpen) port.write(c);
         },
         close: () => { try { port.close(); } catch {} },

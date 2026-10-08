@@ -207,6 +207,30 @@ void calCapture() {
   if (calStep >= 6) calFinish(); else calPrompt();
 }
 
+// Quick calibration: board lying flat, chip facing the ceiling. Zeroes the X/Y offsets (and Z offset, assuming
+// the scale is right). Much easier than the 6-position one and fixes most of the "tilted when level" error.
+void calQuick() {
+  float sx, sy, sz;
+  int n = calSample(sx, sy, sz);
+  if (n < 50) { for (int t = 0; t < 5 && !adxlBegin(); t++) delay(100); n = calSample(sx, sy, sz); }
+  if (n < 50) { calSay("error", "Sensor read failed: the ADXL345 stopped answering. Press the jumper wires (SDA, SCL, 3V3, GND) firmly in, then try again."); return; }
+  float x = sx / n, y = sy / n, z = sz / n;
+  Serial.printf("# quick capture raw x=%.3f y=%.3f z=%.3f\n", x, y, z);
+  if (fabsf(z - 1.0f) > 0.25f || fabsf(x) > 0.35f || fabsf(y) > 0.35f) {
+    calSay("error", "The board is not flat with the chip facing the ceiling. Lay it flat on the table, chip up, and try again.");
+    return;
+  }
+  cal.magic = CAL_MAGIC;
+  cal.off[0] = x; cal.off[1] = y; cal.off[2] = z - 1.0f;
+  cal.sc[0] = cal.sc[1] = cal.sc[2] = 1.0f;
+  EEPROM.put(0, cal);
+  EEPROM.commit();
+  Serial.printf("# quick calibration saved: offsets %.3f %.3f %.3f\n", cal.off[0], cal.off[1], cal.off[2]);
+  calSay("done", "saved");
+  primed = false;
+  zeroNext = true;
+}
+
 void led(uint16_t ms) { ledUntil = millis() + ms; }
 
 void setup() {
@@ -238,6 +262,7 @@ void loop() {
     else if (c == 'b') led(400);
     else if (c == 'z') zeroNext = true;
     else if (c == 'c' && calStep < 0) calBegin();                       // page: start calibration
+    else if (c == 'q' && calStep < 0) calQuick();                       // page: quick calibration (flat)
     else if (c == 'n' && calStep >= 0) calCapture();                    // page: capture this position
     else if (c == 'x' && calStep >= 0) { calStep = -1; calSay("cancel", "cancelled"); }  // page: cancel
   }
