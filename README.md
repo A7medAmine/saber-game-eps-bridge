@@ -41,8 +41,9 @@ Cheap ADXL345 boards are often a few percent off on each axis, which makes the s
 Or with the board's own button:
 1. Run the bridge with `--serial COM3` (messages appear in its console), or use the Arduino Serial Monitor instead of the bridge.
 2. **Hold the FLASH button (or START) for 3 seconds.** The LED blinks fast.
-3. For each of the 6 prompts, hold the board perfectly still in that position (use a table edge or a box corner), then **tap FLASH** (or press RECENTER). Positions: X arrow up, X arrow down, Y arrow up, Y arrow down, flat face up, flat face down. The arrows are printed on the ADXL345 board.
-4. After step 6 the page / bridge reports the calibration as saved. Holding FLASH for 1 second or more cancels.
+3. Rest the board still on one of its six sides, **in any order** (no need to match arrow names exactly: the board detects which side is facing up), then **tap FLASH** (or press RECENTER / click Ready on the page). It reports the side it captured and which are still needed. The six sides are: X arrow up, X arrow down, Y arrow up, Y arrow down, chip face up, chip face down. The arrows are printed on the ADXL345 board (in the usual photo, with the pin header on the right: X points to the top of the board and Y to the left).
+   - Use a book, box corner or table edge to hold the board upright; the sides must be nearly vertical or flat. A tilted board or a side that was already captured is rejected with a message.
+4. After the sixth side it reports `saved`, or `Failed` with the measured axis ranges (each should be about 2.00; if one is far off, check the wiring and that the sensor is solid). Holding FLASH for 1 second or more cancels.
 It is remembered after power-off. Re-run it any time.
 
 ## Important: the ADXL345 is not a gyroscope

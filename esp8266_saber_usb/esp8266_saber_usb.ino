@@ -59,18 +59,15 @@ float outElev = 30.0f, outYaw = 0.0f;
 struct Cal { uint32_t magic; float off[3]; float sc[3]; };
 const uint32_t CAL_MAGIC = 0xADC03451;
 Cal cal = { CAL_MAGIC, {0, 0, 0}, {1, 1, 1} };
-int8_t calStep = -1;                    // -1 = normal operation, 0..5 = calibrating
+int8_t calStep = -1;                    // -1 = normal operation, otherwise how many sides are captured so far (0..5)
+uint8_t calMask = 0;                    // bit i set = side i already captured
 float calPos[3], calNeg[3];
 uint32_t startHeld = 0, fHeld = 0;
 bool calTriggered = false, fCalDone = false;
-const char* CAL_PROMPT[6] = {
-  "X arrow pointing UP (stand the board on its edge)",
-  "X arrow pointing DOWN",
-  "Y arrow pointing UP",
-  "Y arrow pointing DOWN",
-  "board lying FLAT, chip face UP (Z up)",
-  "board lying FLAT, chip face DOWN (Z down)"
-};
+// Six sides, in any order: bit = axis (0 X, 1 Y, 2 Z) for "up", axis + 3 for "down".
+// "up" means that axis points at the ceiling (the arrow printed on the board).
+const char* SIDE[6] = { "X arrow up", "Y arrow up", "chip face up", "X arrow down", "Y arrow down", "chip face down" };
+int sideIndex(int axis, bool neg) { return axis + (neg ? 3 : 0); }
 
 // Sends a calibration status line to the game page (via the bridge). Texts must not contain quotes.
 void calSay(const char* st, const char* text) {
@@ -85,8 +82,11 @@ void calLoad() {
 }
 
 void calPrompt() {
-  char buf[120];
-  snprintf(buf, sizeof(buf), "Hold the board still with the %s", CAL_PROMPT[calStep]);
+  char buf[200];
+  int n = snprintf(buf, sizeof(buf), "Rest the board still on a side. Still needed: ");
+  for (int i = 0; i < 6 && n < (int)sizeof(buf) - 24; i++)
+    if (!(calMask & (1 << i))) n += snprintf(buf + n, sizeof(buf) - n, "%s, ", SIDE[i]);
+  if (n >= 2) buf[n - 2] = 0;                           // drop the trailing ", "
   calSay("prompt", buf);
 }
 
@@ -130,6 +130,7 @@ bool adxlBegin() {
 
 void calBegin() {
   calStep = 0;
+  calMask = 0;
   calPrompt();
 }
 
@@ -137,17 +138,25 @@ void calFinish() {
   Cal c = cal;
   c.magic = CAL_MAGIC;
   bool ok = true;
+  float range[3];
   for (int a = 0; a < 3; a++) {
-    float range = calPos[a] - calNeg[a];
-    if (range < 1.5f || range > 2.5f) ok = false;
+    range[a] = calPos[a] - calNeg[a];
+    if (range[a] < 1.5f || range[a] > 2.5f) ok = false;
     c.off[a] = (calPos[a] + calNeg[a]) / 2.0f;
-    c.sc[a] = 2.0f / range;
+    c.sc[a] = 2.0f / range[a];
   }
   calStep = -1;
-  if (!ok) { calSay("failed", "Calibration failed, readings were not consistent. Nothing saved. Try again."); return; }
+  if (!ok) {
+    char buf[140];
+    snprintf(buf, sizeof(buf), "Failed, nothing saved. Axis ranges X %.2f Y %.2f Z %.2f (should be about 2.00). Check the sensor and wiring, then try again.", range[0], range[1], range[2]);
+    calSay("failed", buf);
+    return;
+  }
   cal = c;
   EEPROM.put(0, cal);
   EEPROM.commit();
+  Serial.printf("# calibration saved: offsets %.3f %.3f %.3f scales %.3f %.3f %.3f\n",
+                cal.off[0], cal.off[1], cal.off[2], cal.sc[0], cal.sc[1], cal.sc[2]);
   calSay("done", "saved");
   primed = false;
   zeroNext = true;
@@ -162,13 +171,25 @@ void calCapture() {
   }
   if (!n) { calSay("error", "Sensor read failed."); return; }
   float v[3] = { sx / n, sy / n, sz / n };
-  int axis = calStep / 2;
-  bool neg = calStep & 1;
-  float val = v[axis];
-  if (fabsf(fabsf(val) - 1.0f) > 0.25f) { calSay("error", "Wrong position: that axis is not vertical. Fix it and capture again."); return; }
-  if ((!neg && val < 0) || (neg && val > 0)) { calSay("error", "The board is the wrong way up for this step. Flip it and capture again."); return; }
-  if (neg) calNeg[axis] = val; else calPos[axis] = val;
-  calSay("ok", "captured");
+  // Whichever axis reads closest to +-1 g is the one pointing up or down; its sign tells which side it is.
+  int a = 0;
+  for (int i = 1; i < 3; i++) if (fabsf(v[i]) > fabsf(v[a])) a = i;
+  bool neg = v[a] < 0;
+  bool level = fabsf(fabsf(v[a]) - 1.0f) <= 0.25f;
+  for (int i = 0; i < 3; i++) if (i != a && fabsf(v[i]) > 0.35f) level = false;
+  Serial.printf("# capture raw x=%.3f y=%.3f z=%.3f\n", v[0], v[1], v[2]);
+  if (!level) { calSay("error", "The board is not resting on a side. Hold it steady so one side points straight up or down, then try again."); return; }
+  int slot = sideIndex(a, neg);
+  char buf[110];
+  if (calMask & (1 << slot)) {
+    snprintf(buf, sizeof(buf), "That side (%s) is already captured. Rotate the board onto a different side.", SIDE[slot]);
+    calSay("error", buf);
+    return;
+  }
+  if (neg) calNeg[a] = v[a]; else calPos[a] = v[a];
+  calMask |= (1 << slot);
+  snprintf(buf, sizeof(buf), "Captured: %s", SIDE[slot]);
+  calSay("ok", buf);
   calStep++;
   if (calStep >= 6) calFinish(); else calPrompt();
 }
