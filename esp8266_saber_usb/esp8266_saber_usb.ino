@@ -162,14 +162,27 @@ void calFinish() {
   zeroNext = true;
 }
 
-void calCapture() {
-  float sx = 0, sy = 0, sz = 0; int n = 0;
-  for (int i = 0; i < 100; i++) {                       // average 0.5 s of raw readings
+// Average 0.5 s of raw readings. If the sensor stops answering (a jumper wire got knocked loose while the
+// board was being turned), re-initialise the bus and the chip, then try once more.
+int calSample(float &sx, float &sy, float &sz) {
+  int n = 0; sx = sy = sz = 0;
+  for (int i = 0; i < 100; i++) {
     float x, y, z;
     if (adxlRead(x, y, z)) { sx += x; sy += y; sz += z; n++; }
     delay(5);
   }
-  if (!n) { calSay("error", "Sensor read failed."); return; }
+  return n;
+}
+
+void calCapture() {
+  float sx, sy, sz;
+  int n = calSample(sx, sy, sz);
+  if (n < 50) {                                        // lost the sensor: reconnect and retry
+    Serial.println("# sensor not answering, re-initialising...");
+    for (int t = 0; t < 5 && !adxlBegin(); t++) delay(100);
+    n = calSample(sx, sy, sz);
+  }
+  if (n < 50) { calSay("error", "Sensor read failed: the ADXL345 stopped answering. A wire probably came loose when you moved the board. Press each jumper (SDA, SCL, 3V3, GND) firmly into the breadboard, then press Ready again."); return; }
   float v[3] = { sx / n, sy / n, sz / n };
   // Whichever axis reads closest to +-1 g is the one pointing up or down; its sign tells which side it is.
   int a = 0;
