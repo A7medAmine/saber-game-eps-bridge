@@ -62,6 +62,13 @@ if (!fs.existsSync(path.join(GAME_DIR, 'index.html'))) {
 
 // ---- static files
 const server = http.createServer((req, res) => {
+  if (/^\/setup\/?(\?.*)?$/.test(req.url)) {
+    fs.readFile(path.join(__dirname, 'public', 'setup.html'), (e, d) => {
+      if (e) { res.writeHead(404).end('setup.html missing'); return; }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); res.end(d);
+    });
+    return;
+  }
   let rel = decodeURIComponent(req.url.split('?')[0]);
   if (rel.endsWith('/')) rel += 'index.html';
   const file = path.normalize(path.join(GAME_DIR, rel));
@@ -107,7 +114,8 @@ function ctrlMessage(id, m) {
   toGames(m);
   const st = stats.get(id) || { n: 0, last: Date.now() };
   stats.set(id, st);
-  if (m.t === 'o') st.n++; else console.log(`[ctrl] ${id} -> ${m.t}`);
+  if (m.t === 'o') st.n++;
+  else if (m.t === 'raw') return; else console.log(`[ctrl] ${id} -> ${m.t}`);
   if (Date.now() - st.last > 5000) {
     console.log(`[ctrl] ${id} ${(st.n / ((Date.now() - st.last) / 1000)).toFixed(0)} msg/s  a=${m.a} b=${m.b} g=${m.g}`);
     st.n = 0; st.last = Date.now();
@@ -177,7 +185,7 @@ function startSerial(portPath) {
       console.log(`[usb] ${portPath} open @ ${BAUD}`);
       handle = {
         send: (o) => {
-          const c = { h: 'h', bomb: 'b', 'cal-start': 'c', 'cal-quick': 'q', 'cal-next': 'n', 'cal-cancel': 'x' }[o.t] || '';
+          const c = { h: 'h', bomb: 'b', 'cal-start': 'c', 'cal-quick': 'q', zero: 'z', 'cal-next': 'n', 'cal-cancel': 'x' }[o.t] || '';
           if (c && port.isOpen) port.write(c);
         },
         close: () => { try { port.close(); } catch {} },
@@ -210,6 +218,7 @@ function startSerial(portPath) {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\nHorizon Blade bridge running. Game folder: ${GAME_DIR}`);
   console.log(`  Game screen : http://localhost:${PORT}`);
+  console.log(`  3D setup    : http://localhost:${PORT}/setup`);
   if (SERIAL_PATH) console.log(`  USB serial  : ${SERIAL_PATH} @ ${BAUD}`);
   else {
     console.log('  USB serial  : off (start with --serial COM3 to use the USB controller)');

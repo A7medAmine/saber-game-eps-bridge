@@ -231,6 +231,15 @@ void calQuick() {
   zeroNext = true;
 }
 
+// Raw sensor values (before calibration) for the 3D setup page, ~15 per second, also while calibrating.
+uint32_t lastRaw = 0;
+void streamRaw(uint32_t now) {
+  if (now - lastRaw < 66) return;
+  lastRaw = now;
+  float x, y, z;
+  if (adxlRead(x, y, z)) Serial.printf("{\"t\":\"raw\",\"x\":%.3f,\"y\":%.3f,\"z\":%.3f}\n", x, y, z);
+}
+
 void led(uint16_t ms) { ledUntil = millis() + ms; }
 
 void setup() {
@@ -293,6 +302,8 @@ void loop() {
     if (startHeld && !calTriggered && now - startHeld > 40) evStart = true;
     startHeld = 0; calTriggered = false;
   }
+
+  streamRaw(now);
 
   if (calStep >= 0) {                                   // calibration mode: no game data is sent
     digitalWrite(PIN_LED, ((now / 150) & 1) ? LOW : HIGH);

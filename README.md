@@ -34,7 +34,10 @@ You do **not** need to wire buttons. The NodeMCU's on-board **FLASH** button (ne
 - **hold 3 seconds** = calibration (see below)
 (The RST button only resets the board and can't be used.) Optional external buttons still work: D5-GND = recenter, D6-GND = start (hold 3 s = calibrate). Don't hold FLASH while plugging the board in or powering it up.
 
-## Quick calibration (easiest, start here)
+## 3D setup page (easiest way to calibrate)
+With the bridge running, open **http://localhost:5173/setup** (also linked from the game). It shows a live 3D model of your controller that follows the real board, and a second model showing how to hold it for each calibration step. When the board is in position and still for 1.5 s it captures by itself (untick auto-capture to use the Capture now button). It has Quick (1 position) and Full (6 positions) calibration, Recenter, and tells you in words if the controller or sensor data is missing. It needs the newest `esp8266_saber_usb` sketch (it sends the live sensor values).
+
+## Quick calibration (from the game page)
 In the game page click **Quick calibrate (lay flat)**: put the controller flat on the table, ADXL345 chip facing the ceiling, click Ready and don't touch it for a second. This zeroes the X/Y offsets, which is what matters most for a tilt stick. The full 6-position calibration below is optional and also fixes per-axis scale.
 
 ## Calibration (USB sketch, 6 positions, optional)

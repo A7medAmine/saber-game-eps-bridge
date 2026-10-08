@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controller Setup</title>
+<style>
+  :root { --bg:#0a1020; --card:#111a30; --line:#23304f; --ink:#e8f0ff; --dim:#8fa0c0; --cyan:#00e5ff; --ok:#4fffa0; --bad:#ff6b6b; --warn:#ffd34d; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui, sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0 auto 0 0; letter-spacing:.08em; }
+  .chip { padding:4px 10px; border-radius:99px; border:1px solid var(--line); font-size:13px; color:var(--dim); }
+  .chip.ok { color:var(--ok); border-color:var(--ok); } .chip.bad { color:var(--bad); border-color:var(--bad); }
+  main { max-width:1100px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+  .stages { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:760px) { .stages { grid-template-columns:1fr; } }
+  .stage { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 10px 12px; text-align:center; position:relative; }
+  .stage h2 { margin:2px 0 0; font-size:13px; letter-spacing:.14em; color:var(--dim); font-weight:600; }
+  .stage.match { border-color:var(--ok); box-shadow:0 0 22px rgba(79,255,160,.25); }
+  .view { height:300px; perspective:900px; position:relative; }
+  .world { position:absolute; left:50%; top:52%; width:0; height:0; transform-style:preserve-3d; transform:rotateX(-26deg) scale(1.05); }
+  .table { position:absolute; left:-150px; top:-150px; width:300px; height:300px; margin-top:104px; border:1px solid #2c3b61; background:rgba(40,60,110,.25); transform:rotateX(90deg); }
+  .pose { position:absolute; left:0; top:0; width:0; height:0; transform-style:preserve-3d; margin-top:-8px; }
+  .box { position:absolute; left:-36px; top:-86px; width:72px; height:172px; transform-style:preserve-3d; }
+  .face { position:absolute; backface-visibility:hidden; }
+  .front, .back { left:0; top:0; width:72px; height:172px; border-radius:4px; }
+  .front { transform:translateZ(6px); } .back { transform:rotateY(180deg) translateZ(6px); background:#cfd6dc; color:#556; font:700 11px sans-serif; display:flex; align-items:center; justify-content:center; text-align:center; }
+  .sideL { left:-6px; top:0; width:12px; height:172px; background:#aeb7bf; transform:rotateY(-90deg); }
+  .sideR { left:66px; top:0; width:12px; height:172px; background:#aeb7bf; transform:rotateY(90deg); }
+  .sideT { left:0; top:-6px; width:72px; height:12px; background:#9aa4ad; transform:rotateX(90deg); }
+  .sideB { left:0; top:166px; width:72px; height:12px; background:#9aa4ad; transform:rotateX(-90deg); }
+  .back span { display:block; transform:scaleX(-1); }
+  .ghost .face { background:rgba(0,229,255,.10) !important; border:1.5px dashed var(--cyan); }
+  .ghost .face svg, .ghost .back span { opacity:.55; }
+  .readout { font:13px ui-monospace, monospace; color:var(--dim); margin-top:2px; }
+  .readout b { color:var(--ink); font-weight:600; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  #msg { font-size:20px; font-weight:600; min-height:56px; }
+  #sub { color:var(--dim); min-height:22px; }
+  .steps { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; margin:14px 0; }
+  @media (max-width:760px) { .steps { grid-template-columns:repeat(2,1fr); } }
+  .st { border:1px solid var(--line); border-radius:8px; padding:6px 4px; text-align:center; font-size:12px; color:var(--dim); }
+  .st.done { border-color:var(--ok); color:var(--ok); } .st.now { border-color:var(--cyan); color:var(--ink); box-shadow:0 0 10px rgba(0,229,255,.3); }
+  .bar { height:8px; background:#1b2748; border-radius:9px; overflow:hidden; margin-top:6px; }
+  .bar i { display:block; height:100%; width:0; background:var(--cyan); transition:width .12s; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+  button { background:#17274a; color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:10px 16px; font:600 15px system-ui; cursor:pointer; }
+  button:hover { border-color:var(--cyan); } button.primary { background:var(--cyan); color:#00232a; border-color:var(--cyan); }
+  label { display:flex; gap:8px; align-items:center; color:var(--dim); font-size:14px; }
+  #log { font:12px ui-monospace, monospace; color:var(--dim); max-height:120px; overflow:auto; margin-top:10px; white-space:pre-wrap; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <h1>CONTROLLER SETUP</h1>
+  <span class="chip" id="cBridge">bridge: connecting…</span>
+  <span class="chip" id="cCtrl">controller: waiting…</span>
+  <span class="chip" id="cData">data: none</span>
+  <a class="chip" href="/" style="text-decoration:none">← back to the game</a>
+</header>
+<main>
+  <div class="stages">
+    <div class="stage" id="liveStage">
+      <h2>YOUR CONTROLLER (LIVE)</h2>
+      <div class="view"><div class="world"><div class="table"></div><div class="pose" id="livePose"></div></div></div>
+      <div class="readout" id="readout">x <b>-</b>  y <b>-</b>  z <b>-</b></div>
+    </div>
+    <div class="stage" id="goalStage">
+      <h2>PUT IT LIKE THIS</h2>
+      <div class="view"><div class="world"><div class="table"></div><div class="pose ghost" id="goalPose"></div></div></div>
+      <div class="readout" id="goalName">chip facing the ceiling</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div id="msg">Connecting…</div>
+    <div id="sub"></div>
+    <div class="bar"><i id="hold"></i></div>
+    <div class="steps" id="steps"></div>
+    <div class="row">
+      <button class="primary" id="bQuick">Quick calibrate (1 position)</button>
+      <button id="bFull">Full calibrate (6 positions)</button>
+      <button id="bNow">Capture now</button>
+      <button id="bZero">Recenter</button>
+      <button id="bCancel">Cancel</button>
+      <label><input type="checkbox" id="auto" checked> auto-capture when it is in position and still</label>
+    </div>
+    <div id="log"></div>
+  </div>
+</main>
+
+<script>
+// ---------------------------------------------------------------- 3D model (CSS 3D, no libraries)
+const FRONT_SVG = `<svg width="72" height="172" viewBox="0 0 72 172">
+  <rect width="72" height="172" rx="4" fill="#eef2f4" stroke="#b9c4ca"/>
+  ${[...Array(28)].map((_, r) => [8, 14, 58, 64].map((x) => `<circle cx="${x}" cy="${8 + r * 5.6}" r="1" fill="#8a9aa4"/>`).join('')).join('')}
+  <rect x="17" y="3" width="38" height="66" rx="2" fill="#1d2430"/><rect x="28" y="0" width="16" height="9" rx="1" fill="#c9ced4"/>
+  <rect x="26" y="26" width="20" height="26" rx="1" fill="#9aa3ad"/><text x="36" y="42" text-anchor="middle" font-size="7" font-weight="700" fill="#222" font-family="sans-serif">ESP</text>
+  <path d="M30 70V104M42 70V104" stroke="#e0a030" stroke-width="1.6" fill="none"/>
+  <rect x="14" y="104" width="44" height="46" rx="2" fill="#2f6fb5" stroke="#1d4f86"/>
+  <rect x="29" y="118" width="14" height="14" rx="1" fill="#111"/>
+  <text x="36" y="144" text-anchor="middle" font-size="6" fill="#fff" font-family="sans-serif">ADXL345</text>
+  <path d="M36 112V88m0 0l-5 7m5-7l5 7" stroke="#ffd34d" stroke-width="2.4" fill="none" stroke-linecap="round"/><text x="44" y="94" font-size="10" font-weight="700" fill="#ffd34d" font-family="sans-serif">X</text>
+  <path d="M34 134H16m0 0l6-4m-6 4l6 4" stroke="#ff7a7a" stroke-width="2.4" fill="none" stroke-linecap="round"/><text x="6" y="127" font-size="10" font-weight="700" fill="#ff7a7a" font-family="sans-serif">Y</text>
+</svg>`;
+function buildModel(el) {
+  el.innerHTML = `<div class="box">
+    <div class="face front">${FRONT_SVG}</div>
+    <div class="face back"><span>bottom</span></div>
+    <div class="face sideL"></div><div class="face sideR"></div><div class="face sideT"></div><div class="face sideB"></div></div>`;
+}
+buildModel(document.getElementById('livePose'));
+buildModel(document.getElementById('goalPose'));
+
+// board vector (what the accelerometer reads, in g) -> rotation that makes the board sit like the real one
+const norm = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+function rotFromTo(a, b) {                       // 3x3 rotation taking unit vector a to unit vector b
+  const c = dot(a, b);
+  if (c < -0.9999) {                              // upside down: turn half a circle about any perpendicular axis
+    const ax = norm(Math.abs(a[0]) < 0.9 ? cross(a, [1, 0, 0]) : cross(a, [0, 1, 0]));
+    const [x, y, z] = ax;
+    return [[2 * x * x - 1, 2 * x * y, 2 * x * z], [2 * x * y, 2 * y * y - 1, 2 * y * z], [2 * x * z, 2 * y * z, 2 * z * z - 1]];
+  }
+  const v = cross(a, b), k = 1 / (1 + c);
+  return [
+    [1 + k * (-v[2] * v[2] - v[1] * v[1]), -v[2] + k * v[0] * v[1], v[1] + k * v[0] * v[2]],
+    [v[2] + k * v[0] * v[1], 1 + k * (-v[2] * v[2] - v[0] * v[0]), -v[0] + k * v[1] * v[2]],
+    [-v[1] + k * v[0] * v[2], v[0] + k * v[1] * v[2], 1 + k * (-v[1] * v[1] - v[0] * v[0])],
+  ];
+}
+function poseCss(u) {
+  // board (x,y,z) -> picture axes (x up, y left, z toward you) -> CSS (x right, y down, z toward viewer)
+  const uc = norm([-u[1], -u[0], u[2]]);
+  const R = rotFromTo(uc, [0, -1, 0]);           // gravity: CSS y points down, so "up" is -y
+  return `matrix3d(${R[0][0]},${R[1][0]},${R[2][0]},0,${R[0][1]},${R[1][1]},${R[2][1]},0,${R[0][2]},${R[1][2]},${R[2][2]},0,0,0,0,1)`;
+}
+
+// ---------------------------------------------------------------- state
+const SIDES = [
+  { name: 'X arrow up',     v: [1, 0, 0],  say: 'Stand it on its edge so the X arrow points to the ceiling' },
+  { name: 'Y arrow up',     v: [0, 1, 0],  say: 'Stand it on its edge so the Y arrow points to the ceiling' },
+  { name: 'chip face up',   v: [0, 0, 1],  say: 'Lay it flat with the chip facing the ceiling' },
+  { name: 'X arrow down',   v: [-1, 0, 0], say: 'Stand it on its edge so the X arrow points to the floor' },
+  { name: 'Y arrow down',   v: [0, -1, 0], say: 'Stand it on its edge so the Y arrow points to the floor' },
+  { name: 'chip face down', v: [0, 0, -1], say: 'Flip it over so the chip faces the table' },
+];
+const $ = (id) => document.getElementById(id);
+let ws = null, ctrlId = null, mode = 'idle';           // idle | quick | full
+let u = [0, 0, 1], cur = [0, 0, 1], lastRaw = 0, samples = [];
+let done = new Set(), busyUntil = 0, lockVec = null, holdSince = 0, justSaved = false;
+
+$('steps').innerHTML = SIDES.map((s, i) => `<div class="st" id="st${i}">${i + 1}. ${s.name}</div>`).join('');
+function log(t, cls) { const d = $('log'); d.insertAdjacentHTML('beforeend', `<div class="${cls || ''}">${t}</div>`); d.scrollTop = d.scrollHeight; }
+function say(m, s, cls) { $('msg').textContent = m; $('msg').className = cls || ''; $('sub').textContent = s || ''; }
+function chip(id, text, cls) { const e = $(id); e.textContent = text; e.className = 'chip ' + (cls || ''); }
+function send(t) { if (ws && ws.readyState === 1 && ctrlId) ws.send(JSON.stringify({ t, id: ctrlId })); }
+
+function angleTo(v) { return Math.acos(Math.max(-1, Math.min(1, dot(norm(cur), v)))) * 180 / Math.PI; }
+function neededSides() { return SIDES.map((s, i) => i).filter((i) => !done.has(i)); }
+function nearestNeeded() {
+  let best = -1, ba = 999;
+  for (const i of neededSides()) { const a = angleTo(SIDES[i].v); if (a < ba) { ba = a; best = i; } }
+  return { i: best, a: ba };
+}
+function isStill() {
+  const now = performance.now();
+  samples = samples.filter((s) => now - s.t < 1000);
+  if (samples.length < 8) return false;
+  for (let k = 0; k < 3; k++) {
+    let lo = 9, hi = -9;
+    for (const s of samples) { lo = Math.min(lo, s.v[k]); hi = Math.max(hi, s.v[k]); }
+    if (hi - lo > 0.03) return false;
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------- websocket
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws?role=game`);
+  ws.onopen = () => chip('cBridge', 'bridge: connected', 'ok');
+  ws.onclose = () => { chip('cBridge', 'bridge: reconnecting…', 'bad'); chip('cCtrl', 'controller: ?', ''); setTimeout(connect, 1500); };
+  ws.onmessage = (e) => {
+    let m; try { m = JSON.parse(e.data); } catch { return; }
+    if (m.t === 'ctrl-join') { ctrlId = m.id; chip('cCtrl', 'controller: ' + m.id, 'ok'); log('Controller connected.', 'ok'); }
+    else if (m.t === 'ctrl-leave') { if (m.id === ctrlId) { ctrlId = null; chip('cCtrl', 'controller: unplugged', 'bad'); say('Controller disconnected', 'Check the USB cable and that nothing else (Serial Monitor, Arduino upload) is using the port.', 'bad'); } }
+    else if (m.t === 'raw') onRaw(m);
+    else if (m.t === 'cal') onCal(m);
+  };
+}
+function onRaw(m) {
+  lastRaw = performance.now();
+  const v = [+m.x, +m.y, +m.z];
+  if (v.some((x) => !isFinite(x))) return;
+  samples.push({ t: lastRaw, v });
+  for (let k = 0; k < 3; k++) u[k] = v[k];
+  const a = 0.35;
+  for (let k = 0; k < 3; k++) cur[k] += (v[k] - cur[k]) * a;
+}
+
+// ---------------------------------------------------------------- calibration protocol
+function onCal(m) {
+  if (m.st === 'prompt') {
+    mode = 'full';
+    const txt = m.text || '';
+    done = new Set(SIDES.map((s, i) => i).filter((i) => !txt.split('needed:')[1]?.includes(SIDES[i].name)));
+    log('Needed: ' + (txt.split('needed:')[1] || '').trim());
+  } else if (m.st === 'ok') {
+    const i = SIDES.findIndex((s) => (m.text || '').includes(s.name));
+    if (i >= 0) done.add(i);
+    log('✓ ' + (m.text || 'captured'), 'ok');
+    lockVec = norm(cur); busyUntil = performance.now() + 700; holdSince = 0;
+  } else if (m.st === 'error') {
+    log(m.text, 'bad'); say('That did not work', m.text, 'bad');
+    lockVec = norm(cur); busyUntil = performance.now() + 700; holdSince = 0;
+  } else if (m.st === 'failed') {
+    mode = 'idle'; log(m.text, 'bad'); say('Calibration failed, nothing was saved', m.text, 'bad');
+  } else if (m.st === 'done') {
+    mode = 'idle'; done = new Set(SIDES.map((s, i) => i)); justSaved = true;
+    log('Calibration saved on the controller.', 'ok');
+    say('Calibrated and saved ✓', 'Now tilt the controller: the left model should follow it exactly. Tap FLASH (or Recenter) while holding it level to set the game\'s zero.', 'ok');
+  } else if (m.st === 'cancel') {
+    mode = 'idle'; say('Cancelled', '', '');
+  }
+}
+
+$('bQuick').onclick = () => { if (!ctrlId) return; justSaved = false; mode = 'quick'; done = new Set(); say('Quick calibration', 'Lay the controller flat on the table with the chip facing the ceiling and keep it still.'); holdSince = 0; lockVec = null; };
+$('bFull').onclick = () => { if (!ctrlId) return; justSaved = false; done = new Set(); lockVec = null; holdSince = 0; send('cal-start'); say('Full calibration', 'Starting…'); };
+$('bNow').onclick = () => { if (mode === 'quick') send('cal-quick'); else if (mode === 'full') send('cal-next'); };
+$('bZero').onclick = () => { send('zero'); log('Recentered.'); };
+$('bCancel').onclick = () => { justSaved = false; if (mode === 'full') send('cal-cancel'); mode = 'idle'; done = new Set(); say('Ready', 'Pick Quick calibrate (1 position) or Full calibrate (6 positions).'); };
+
+// ---------------------------------------------------------------- main loop
+let goalVec = [0, 0, 1], goalName = 'chip facing the ceiling';
+function frame() {
+  const now = performance.now();
+  const fresh = now - lastRaw < 1500;
+  chip('cData', fresh ? 'data: live' : 'data: none', fresh ? 'ok' : (ctrlId ? 'bad' : ''));
+  $('livePose').style.transform = poseCss(cur);
+  $('readout').innerHTML = fresh ? `x <b>${u[0].toFixed(2)}</b>  y <b>${u[1].toFixed(2)}</b>  z <b>${u[2].toFixed(2)}</b>  g` : 'no sensor data yet';
+
+  let matched = false, pct = 0;
+  if (!fresh) {
+    if (ctrlId && mode === 'idle') say('Controller connected, but no sensor data', 'Re-upload the newest esp8266_saber_usb sketch (it sends the live sensor data this page needs), then restart the bridge.', 'warn');
+    else if (!ctrlId && mode === 'idle') say('Waiting for the controller…', 'Plug in the ESP8266 and start the bridge with: node server.js --serial /dev/ttyUSB0', '');
+  } else if (mode === 'idle') {
+    if (justSaved) { /* keep the success message */ }
+    else say('Ready', 'Pick Quick calibrate (1 position) or Full calibrate (6 positions). Move the controller and watch the model follow it.');
+    goalVec = [0, 0, 1]; goalName = 'chip facing the ceiling';
+  } else if (mode === 'quick') {
+    goalVec = [0, 0, 1]; goalName = 'flat, chip facing the ceiling';
+    const a = angleTo(goalVec); matched = a < 8;
+    if (matched) say('In position. Hold still…', 'Do not touch it.', 'ok'); else say('Lay it flat, chip up', `${a.toFixed(0)}° away from flat`, '');
+    pct = autoLogic(matched, () => send('cal-quick'));
+  } else if (mode === 'full') {
+    const n = nearestNeeded();
+    if (n.i >= 0) {
+      goalVec = SIDES[n.i].v; goalName = SIDES[n.i].name; matched = n.a < 10;
+      if (matched) say(`${SIDES[n.i].name}: hold still…`, 'Do not touch it.', 'ok'); else say(SIDES[n.i].say, `${n.a.toFixed(0)}° away. ${6 - done.size} left; any order is fine.`, '');
+      pct = autoLogic(matched, () => send('cal-next'));
+    }
+  }
+  $('goalPose').style.transform = poseCss(goalVec);
+  $('goalName').textContent = goalName;
+  $('goalStage').classList.toggle('match', matched);
+  $('liveStage').classList.toggle('match', matched);
+  $('hold').style.width = (pct * 100) + '%';
+  SIDES.forEach((s, i) => { const e = $('st' + i); e.className = 'st' + (done.has(i) && mode !== 'idle' ? ' done' : '') + (mode === 'full' && !done.has(i) && goalName === s.name ? ' now' : ''); });
+  requestAnimationFrame(frame);
+}
+// holds still in position for 1.5 s -> fires the capture (once), then waits until the board is moved before trying again
+function autoLogic(matched, fire) {
+  const now = performance.now();
+  if (lockVec && angleTo(lockVec) < 20) return 0;     // just tried here; move it first
+  if (lockVec) lockVec = null;
+  if (now < busyUntil || !matched || !isStill()) { holdSince = 0; return 0; }
+  if (!holdSince) holdSince = now;
+  const p = (now - holdSince) / 1500;
+  if (p >= 1) {
+    holdSince = 0; busyUntil = now + 1500; lockVec = norm(cur);
+    if ($('auto').checked) { fire(); log('Capturing…'); }
+    return 0;
+  }
+  return $('auto').checked ? p : 0;
+}
+say('Connecting…');
+connect();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
